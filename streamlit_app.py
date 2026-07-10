@@ -68,25 +68,32 @@ def _render(result: dict) -> None:
     st.caption(f"{result['n_frames']} frames sampled · distinct: {result['distinct']}")
 
 
-# --- Always-on showcase: real Gemma output, no model/keys needed ---
-_sample = os.path.join(os.path.dirname(__file__), "eval", "sample_output", "dancing_cats.json")
+# --- Static demo: the sample clip + its REAL Gemma captions (no model/keys needed) ---
+_here = os.path.dirname(__file__)
+_sample = os.path.join(_here, "eval", "sample_output", "dancing_cats.json")
+_clip = os.path.join(_here, "eval", "sample_output", "dancing_cats.mp4")
 if os.path.exists(_sample):
     import json as _json
     _d = _json.load(open(_sample))
-    with st.expander("▶ Sample result — real Gemma output on a demo clip", expanded=(SETTINGS.mode == "stub")):
-        st.caption(f"Gemma multimodal · {_d.get('n_frames', '?')} frames sampled")
-        st.info(_d.get("grounded_facts", ""))
-        for _s in STYLES:
-            st.markdown(f"**{_LABELS[_s.key]}** — {_d['captions'].get(_s.key, '')}")
+    st.subheader("Sample — real Gemma output")
+    if os.path.exists(_clip):
+        st.video(_clip)
+    st.caption(f"Gemma multimodal vision · {_d.get('n_frames', '?')} frames sampled across the clip")
+    st.markdown("**What Gemma saw** (grounded facts)")
+    st.info(_d.get("grounded_facts", ""))
+    st.markdown("**The four voices**")
+    for _s in STYLES:
+        with st.container(border=True):
+            st.markdown(f"**{_LABELS[_s.key]}**")
+            st.write(_d["captions"].get(_s.key, ""))
+    st.divider()
 
 if SETTINGS.mode == "stub":
-    # No model backend → do NOT show a live uploader (it would fabricate captions).
-    st.warning("**Showcase instance** — no model backend is configured, so live "
-               "captioning is turned off (an uploader with no model would return "
-               "meaningless output). The sample above is **real Gemma output**. To "
-               "caption your own clips: run locally against Gemma via Ollama (free — "
-               "see the repo README), or deploy this app with `LLM_BASE_URL` / "
-               "`LLM_API_KEY` / `LLM_MODEL` set in Secrets.")
+    # No model backend → don't show a live uploader (it would fabricate captions).
+    st.info("👆 This is a **static demo** of the sample clip above (real Gemma output). "
+            "To caption **your own** clips live, run the app with a model endpoint — "
+            "either a **Fireworks API key** (`LLM_BASE_URL`/`LLM_API_KEY`/`LLM_MODEL`) "
+            "or a **local Gemma endpoint** via Ollama. See the repo README.")
 else:
     tab_video, tab_text = st.tabs(["Caption a video", "Caption from a description"])
 
