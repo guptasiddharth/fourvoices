@@ -80,36 +80,39 @@ if os.path.exists(_sample):
             st.markdown(f"**{_LABELS[_s.key]}** — {_d['captions'].get(_s.key, '')}")
 
 if SETTINGS.mode == "stub":
-    st.warning("Live inference isn't configured on this instance (no model endpoint). "
-               "The sample above is real Gemma output. To caption your own clips live, "
-               "set `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` in the app Secrets, or "
-               "run it locally against Gemma via Ollama (see the repo README).")
+    # No model backend → do NOT show a live uploader (it would fabricate captions).
+    st.warning("**Showcase instance** — no model backend is configured, so live "
+               "captioning is turned off (an uploader with no model would return "
+               "meaningless output). The sample above is **real Gemma output**. To "
+               "caption your own clips: run locally against Gemma via Ollama (free — "
+               "see the repo README), or deploy this app with `LLM_BASE_URL` / "
+               "`LLM_API_KEY` / `LLM_MODEL` set in Secrets.")
+else:
+    tab_video, tab_text = st.tabs(["Caption a video", "Caption from a description"])
 
-tab_video, tab_text = st.tabs(["Caption a video", "Caption from a description"])
+    with tab_video:
+        up = st.file_uploader(
+            "Upload a short clip (30s–2min)",
+            type=["mp4", "m4v", "mov", "qt", "mkv", "webm", "avi", "flv", "f4v", "wmv",
+                  "asf", "mpeg", "mpg", "m2v", "mts", "m2ts", "ts", "3gp", "3g2", "ogv",
+                  "vob", "divx", "mxf", "gif"])
+        if up and st.button("Caption it", type="primary"):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(up.name)[1]) as f:
+                f.write(up.read())
+                path = f.name
+            st.video(path)
+            with st.spinner("Gemma is watching the clip and writing four voices…"):
+                try:
+                    _render(VideoCaptioner().caption(clip_path=path))
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Inference failed: {exc}")
 
-with tab_video:
-    up = st.file_uploader(
-        "Upload a short clip (30s–2min)",
-        type=["mp4", "m4v", "mov", "qt", "mkv", "webm", "avi", "flv", "f4v", "wmv",
-              "asf", "mpeg", "mpg", "m2v", "mts", "m2ts", "ts", "3gp", "3g2", "ogv",
-              "vob", "divx", "mxf", "gif"])
-    if up and st.button("Caption it", type="primary"):
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(up.name)[1]) as f:
-            f.write(up.read())
-            path = f.name
-        st.video(path)
-        with st.spinner("Gemma is watching the clip and writing four voices…"):
-            try:
-                _render(VideoCaptioner().caption(clip_path=path))
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"Inference failed: {exc}\n\nCheck the model Secrets in the sidebar.")
-
-with tab_text:
-    facts = st.text_area("Describe what's in the video (grounded facts)",
-                         "Five cartoon cats in pink sunglasses do a synchronized dance on a cyan background.")
-    if st.button("Generate four voices"):
-        with st.spinner("Writing four voices…"):
-            try:
-                _render(VideoCaptioner().caption(facts=facts))
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"Inference failed: {exc}")
+    with tab_text:
+        facts = st.text_area("Describe what's in the video (grounded facts)",
+                             "Five cartoon cats in pink sunglasses do a synchronized dance on a cyan background.")
+        if st.button("Generate four voices"):
+            with st.spinner("Writing four voices…"):
+                try:
+                    _render(VideoCaptioner().caption(facts=facts))
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Inference failed: {exc}")
