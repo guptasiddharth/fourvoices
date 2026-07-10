@@ -34,18 +34,18 @@ class VideoCaptioner:
             frames = sample_frames(clip_path, n)
         grounded = facts or self.llm.describe_frames(frames)
 
-        captions: dict[str, str] = {}
+        by = {s.key: s for s in STYLES}
+        keys = list(by)
+        captions = self.llm.style_all(grounded, keys)   # one structured call for all 4
         checks: dict[str, dict[str, bool]] = {}
-        for style in STYLES:
-            text = self.llm.style_caption(grounded, style)
+        for k in keys:
+            text = captions.get(k, "")
             acc = accuracy_ok(grounded, text)
-            tone = self.llm.check_tone(text, style)
-            if not (acc and tone):                      # one regeneration attempt
-                text = self.llm.style_caption(grounded, style)
+            if not acc:                                  # regenerate only on content drift
+                text = self.llm.style_caption(grounded, by[k])
                 acc = accuracy_ok(grounded, text)
-                tone = self.llm.check_tone(text, style)
-            captions[style.key] = text
-            checks[style.key] = {"accuracy": acc, "tone": tone}
+            captions[k] = text
+            checks[k] = {"accuracy": acc}
 
         return {
             "clip": clip_path,

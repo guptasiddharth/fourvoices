@@ -11,7 +11,7 @@ import ssl
 import urllib.request
 
 from .config import SETTINGS, Settings
-from .styles import Style, generation_prompt
+from .styles import STYLES, Style, generation_prompt
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -100,6 +100,35 @@ class LLMClient:
         # avoids any vision+response_format incompatibility on the target model.
         raw = self._chat([{"role": "user", "content": content}], max_tokens=400)
         return _clean(raw)
+
+    def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
+        """All requested styles in ONE structured JSON call (efficient + coherent).
+        Falls back to per-style generation for anything missing/unparseable."""
+        by = {s.key: s for s in STYLES}
+        keys = [k for k in keys if k in by]
+        if self.s.mode == "stub":
+            return {k: by[k].stub_template.format(facts=facts.rstrip(".")) for k in keys}
+        guide = "\n".join(f'- "{k}" ({by[k].name}): {by[k].guidance}' for k in keys)
+        example = ", ".join(f'"{k}": "..."' for k in keys)
+        prompt = (f"GROUNDED visual facts (do not add anything not present here):\n{facts}\n\n"
+                  f"Write ONE caption for EACH style below — faithful to the facts, one short "
+                  f"sentence each, tone unmistakable:\n{guide}\n\n"
+                  f"Return ONLY a JSON object mapping each style key to its caption: {{{example}}}. "
+                  f"No other text.")
+        raw = self._chat([{"role": "system", "content": _SYSTEM},
+                          {"role": "user", "content": prompt}], max_tokens=900, json_mode=True)
+        out: dict[str, str] = {}
+        m = re.search(r"\{.*\}", raw, re.S)
+        if m:
+            try:
+                data = json.loads(m.group())
+                out = {k: str(data.get(k, "")).strip().strip('"') for k in keys}
+            except Exception:  # noqa: BLE001
+                pass
+        for k in keys:                      # backfill any missing style individually
+            if not out.get(k):
+                out[k] = self.style_caption(facts, by[k])
+        return out
 
     def style_caption(self, facts: str, style: Style) -> str:
         if self.s.mode == "stub":
