@@ -1,0 +1,9 @@
+# Service layer (the core pipeline + stub are stdlib-only).
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6
+
+# System dependency (not pip): ffmpeg — for frame sampling from real clips.
+#   macOS: brew install ffmpeg   ·   Debian/Ubuntu: apt-get install ffmpeg
+# Gemma inference is remote (Fireworks) or a vLLM Gemma server on the MI300X;
+# no local model weights are required by this package.

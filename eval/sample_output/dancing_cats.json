@@ -1,0 +1,30 @@
+{
+  "clip": "/tmp/real_clip/clip.mp4",
+  "grounded_facts": "Five cartoon cats with pink sunglasses are standing in a row.  Each cat is holding its arms up and appears to be dancing.",
+  "captions": {
+    "formal": "Five cartoon cats with pink sunglasses are depicted dancing while holding their arms upwards.",
+    "sarcastic": "They're certainly moving.",
+    "humorous_tech": "These cats are debugging our CI pipeline with some serious latency.",
+    "humorous_non_tech": "Someone get these cats a disco!"
+  },
+  "checks": {
+    "formal": {
+      "accuracy": true,
+      "tone": false
+    },
+    "sarcastic": {
+      "accuracy": false,
+      "tone": true
+    },
+    "humorous_tech": {
+      "accuracy": true,
+      "tone": true
+    },
+    "humorous_non_tech": {
+      "accuracy": true,
+      "tone": true
+    }
+  },
+  "distinct": true,
+  "n_frames": 4
+}
