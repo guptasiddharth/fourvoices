@@ -68,6 +68,23 @@ def _render(result: dict) -> None:
     st.caption(f"{result['n_frames']} frames sampled · distinct: {result['distinct']}")
 
 
+# --- Always-on showcase: real Gemma output, no model/keys needed ---
+_sample = os.path.join(os.path.dirname(__file__), "eval", "sample_output", "dancing_cats.json")
+if os.path.exists(_sample):
+    import json as _json
+    _d = _json.load(open(_sample))
+    with st.expander("▶ Sample result — real Gemma output on a demo clip", expanded=(SETTINGS.mode == "stub")):
+        st.caption(f"Gemma multimodal · {_d.get('n_frames', '?')} frames sampled")
+        st.info(_d.get("grounded_facts", ""))
+        for _s in STYLES:
+            st.markdown(f"**{_LABELS[_s.key]}** — {_d['captions'].get(_s.key, '')}")
+
+if SETTINGS.mode == "stub":
+    st.warning("Live inference isn't configured on this instance (no model endpoint). "
+               "The sample above is real Gemma output. To caption your own clips live, "
+               "set `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` in the app Secrets, or "
+               "run it locally against Gemma via Ollama (see the repo README).")
+
 tab_video, tab_text = st.tabs(["Caption a video", "Caption from a description"])
 
 with tab_video:
