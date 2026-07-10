@@ -13,5 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY eval ./eval
 
-EXPOSE 8000
-CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Track 2 evaluation contract: read /input/tasks.json → write /output/results.json → exit 0.
+# (The FastAPI server + Streamlit demo are separate modules; override CMD to use them.)
+CMD ["python", "-m", "app.harness"]
