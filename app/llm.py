@@ -84,10 +84,12 @@ class LLMClient:
         if self.s.mode == "stub" or not frame_paths:
             return _STUB_FACTS
         content = [{"type": "text", "text":
-                    "These frames are sampled in order from one short video. In 1-2 "
-                    "sentences describe ONLY what is visibly happening — objects, "
-                    "actions, setting. No tone, no opinion, no invented detail. "
-                    "Output just the description sentence(s)."}]
+                    "These frames are sampled in chronological order and span the "
+                    "ENTIRE clip from start to finish. Summarize what happens across "
+                    "the whole clip: the setting, the main subjects, and how the action "
+                    "progresses from beginning to end. 2-4 sentences. Describe only what "
+                    "is visibly shown — no invented detail, no dialogue. Output just the "
+                    "summary."}]
         for p in frame_paths:
             with open(p, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()

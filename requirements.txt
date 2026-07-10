@@ -2,6 +2,7 @@
 fastapi>=0.110
 uvicorn>=0.29
 pydantic>=2.6
+streamlit>=1.36     # live demo UI (streamlit_app.py); also used by Streamlit Cloud
 
 # System dependency (not pip): ffmpeg — for frame sampling from real clips.
 #   macOS: brew install ffmpeg   ·   Debian/Ubuntu: apt-get install ffmpeg

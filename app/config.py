@@ -31,7 +31,7 @@ def load_settings() -> Settings:
         # track. Confirm the exact Fireworks id at launch; gemma-3-27b-it is the
         # known-working multimodal fallback.
         model=os.getenv("LLM_MODEL", "accounts/fireworks/models/gemma-4-26b-a4b-it"),
-        n_frames=int(os.getenv("VC_N_FRAMES", "6")),
+        n_frames=int(os.getenv("VC_N_FRAMES", "8")),   # floor; scales up with clip length
         request_timeout=float(os.getenv("LLM_TIMEOUT", "120")),
     )
 

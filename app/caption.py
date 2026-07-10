@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from .frames import sample_frames
+from .frames import duration_sec, sample_frames
 from .llm import LLMClient
 from .styles import STYLES, accuracy_ok, distinct_ok
+
+_SEC_PER_FRAME = 12   # ~1 frame every 12s of video
+_MAX_FRAMES = 16      # cap (Gemma 4 handles many images; keeps latency/cost sane)
 
 
 class VideoCaptioner:
@@ -21,7 +24,14 @@ class VideoCaptioner:
 
     def caption(self, clip_path: str | None = None, *, facts: str | None = None) -> dict[str, Any]:
         """Caption one clip. Pass `clip_path` (real video) or `facts` (offline/testing)."""
-        frames = sample_frames(clip_path, self.llm.s.n_frames) if clip_path else []
+        frames = []
+        if clip_path:
+            base = self.llm.s.n_frames
+            dur = duration_sec(clip_path)
+            # Scale frame count with length so a 2-min clip is covered end-to-end
+            # (≈1 frame / 12s), floored at the configured base, capped at _MAX_FRAMES.
+            n = min(max(base, int(dur // _SEC_PER_FRAME) + 1), _MAX_FRAMES) if dur else base
+            frames = sample_frames(clip_path, n)
         grounded = facts or self.llm.describe_frames(frames)
 
         captions: dict[str, str] = {}
