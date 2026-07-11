@@ -2,28 +2,28 @@
   {
     "task_id": "v1",
     "captions": {
-      "formal": "Vehicles move through a multi-lane city street with motion blur in a long-exposure shot as golden light illuminates trees with yellow autumn foliage and urban buildings.",
-      "sarcastic": "A riveting high-speed chase through a city street, if you define high-speed as the motion blur of a few cars in a own-speed traffic jam.",
-      "humorous_tech": "The city traffic is running on a high-latency network with zero throughput and massive motion blur in the rendering-engine-driven sunset-golden-hour-patch-v2.0.",
-      "humorous_non_tech": "The city is moving way faster than my motivation to get out of bed on a Monday morning."
+      "formal": "A time-lapse sequence shows motion-blurred vehicles speeding through a sunlit urban intersection lined with yellow autumn trees and high-rise buildings, including a structure marked 'KOREA TECTES ENGINEERING'.",
+      "sarcastic": "Witness the breathtaking spectacle of cars driving through an intersection, a chaotic event carefully framed by some trees and a sign for Korea Tectes Engineering.",
+      "humorous_tech": "This intersection is processing traffic with the throughput of a well-optimized load balancer while the autumn leaves provide the only static assets in sight.",
+      "humorous_non_tech": "The cars moved so fast they turned into yellow streaks, proving that autumn is the one season where traffic actually has a need for speed."
     }
   },
   {
     "task_id": "v2",
     "captions": {
-      "formal": "An orange ginger kitten walks through a sun-dappled, wooded area toward the camera through green foliage and tree trunks.",
-      "sarcastic": "A breathtaking display of locomotion by an orange kitten navigating a sun-dappled forest floor.",
-      "humorous_tech": "This ginger kitten's pathfinding algorithm is clearly broken and it is walking straight into a collision-detection error.",
-      "humorous_non_tech": "This tiny orange kitten is on a mission to conquer the forest, even though he is clearly just looking for a little nap."
+      "formal": "A small ginger kitten walks forward from beneath low-hanging branches in a sun-dappled outdoor area, moving steadily toward the camera with a direct gaze.",
+      "sarcastic": "Behold the sheer audacity of a ginger kitten executing a forward locomotion strategy in the dirt.",
+      "humorous_tech": "This ginger kitten is deploying to production with zero testing and absolute confidence.",
+      "humorous_non_tech": "This tiny ginger boss is marching toward you with the confidence of someone who knows you will move."
     }
   },
   {
     "task_id": "v3",
     "captions": {
-      "formal": "A young Black woman with hair in a high bun works at a computer in a brightly lit, modern office, typing on a white keyboard while looking intently at a monitor.",
-      "sarcastic": "A breathtaking display of a woman typing on a keyboard in a modern office setting.",
-      "humorous_tech": "She is deep in the flow state and currently attempting to a single line of code that doesn't throw a 404 error.",
-      "humorous_non_tech": "She is staring at that monitor with the intensity of a person who just realized they left the stove on at home."
+      "formal": "A woman in a beige jacket and orange top types on a white keyboard at a desk in a modern office with glass partitions and circular ceiling lights.",
+      "sarcastic": "Witness the sheer audacity of a woman in a beige jacket actually using her keyboard in a modern office.",
+      "humorous_tech": "She is typing furiously to push a hotfix before the standup meeting realizes the main branch is on fire.",
+      "humorous_non_tech": "She is typing with the intensity of someone who just remembered they left the oven on, but it is probably just an email."
     }
   }
 ]

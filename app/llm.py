@@ -134,6 +134,10 @@ class LLMClient:
         for model in models:
             payload = {"model": model, "messages": msgs,
                        "max_tokens": max_tokens, "temperature": temperature, "top_p": 0.9}
+            if self.s.reasoning_effort:
+                # Disables chain-of-thought on reasoning models (Fireworks) → clean,
+                # fast captions with no <thought>/preamble leakage.
+                payload["reasoning_effort"] = self.s.reasoning_effort
             if json_mode and prefill is None:
                 payload["response_format"] = {"type": "json_object"}  # structured → no rambling
             req = urllib.request.Request(
@@ -142,7 +146,7 @@ class LLMClient:
                 headers={"Content-Type": "application/json",
                          "Authorization": f"Bearer {self.s.api_key}",
                          "User-Agent": "FourVoices/0.1"})  # default urllib UA is WAF-blocked
-            for attempt in range(5):                 # ride through transient 5xx / throttle
+            for attempt in range(3):                 # ride through transient 5xx / throttle
                 try:
                     with urllib.request.urlopen(req, timeout=self.s.request_timeout,
                                                 context=_SSL_CTX) as resp:
@@ -150,14 +154,14 @@ class LLMClient:
                     break
                 except urllib.error.HTTPError as e:
                     last_exc = e
-                    if e.code in (429, 500, 502, 503, 504) and attempt < 4:
-                        time.sleep(min(2.0 * (attempt + 1), 8.0))
+                    if e.code in (429, 500, 502, 503, 504) and attempt < 2:
+                        time.sleep(1.5 * (attempt + 1))
                         continue
                     break                            # non-retryable → try next model
                 except (urllib.error.URLError, TimeoutError) as e:
                     last_exc = e
-                    if attempt < 4:
-                        time.sleep(min(2.0 * (attempt + 1), 8.0))
+                    if attempt < 2:
+                        time.sleep(1.5 * (attempt + 1))
                         continue
                     break
             if msg is not None:
@@ -168,6 +172,16 @@ class LLMClient:
         if prefill is not None:
             content = prefill + content
         return content.strip()
+
+    def _ask_json(self, messages: list[dict], max_tokens: int, temperature: float) -> str:
+        """Get a clean JSON reply, choosing the technique the backend needs:
+        reasoning models (Fireworks) → reasoning_effort=none + json_object mode;
+        Gemma (thinking can't be disabled) → prefill "{" to skip the <thought> block."""
+        if self.s.reasoning_effort:
+            return self._chat(messages, max_tokens=max_tokens, json_mode=True,
+                              temperature=temperature)
+        return self._chat(messages, max_tokens=max_tokens, prefill="{",
+                          temperature=temperature)
 
     def describe_frames(self, frame_paths: list[str]) -> str:
         """Gemma multimodal → neutral, grounded visual facts for the clip."""
@@ -192,11 +206,9 @@ class LLMClient:
         # styling), so the paragraph comes back clean without a huge token budget.
         # Low temperature for faithfulness.
         msg = [{"role": "user", "content": content}]
-        facts = _json_field(self._chat(msg, max_tokens=500, prefill="{", temperature=0.2),
-                            "description")
+        facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
         if _bad_facts(facts):                        # leaked/looped/empty → retry once
-            facts = _json_field(self._chat(msg, max_tokens=500, prefill="{", temperature=0.2),
-                                "description")
+            facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
         return _STUB_FACTS if _bad_facts(facts) else facts
 
     def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
@@ -214,9 +226,8 @@ class LLMClient:
                {"role": "user", "content": generation_prompt(facts, style)}]
         # Higher temperature so the humor/irony actually lands; the guard + stub
         # fallback keep a bad sample from ever shipping.
-        for _ in range(3):                              # retries on a degenerate sample
-            cap = _json_field(self._chat(msg, max_tokens=110, prefill="{",
-                                         temperature=0.5), "caption")
+        for _ in range(2):                              # retry once on a degenerate sample
+            cap = _json_field(self._ask_json(msg, 110, 0.65), "caption")
             if not _degenerate(cap):
                 return cap
         return style.stub_template.format(facts=facts.rstrip("."))   # clean, never garbage

@@ -13,8 +13,9 @@ class Settings:
     mode: str                 # "auto" | "stub" | "openai"
     base_url: str | None
     api_key: str
-    model: str                # a Gemma multimodal model id
-    model_fallback: str       # second Gemma model tried if the primary 5xx's
+    model: str                # a multimodal model id (vision + text)
+    model_fallback: str       # second model tried if the primary 5xx's ("" to disable)
+    reasoning_effort: str     # e.g. "none" — disables CoT on reasoning models (Fireworks)
     n_frames: int             # frames sampled per clip
     request_timeout: float
 
@@ -38,8 +39,9 @@ def load_settings() -> Settings:
         # Google's free Gemma endpoint intermittently 500s; 31b is a stable Gemma 4
         # sibling used as automatic fallback when the primary keeps erroring.
         model_fallback=os.getenv("LLM_MODEL_FALLBACK", "gemma-4-31b-it"),
-        n_frames=int(os.getenv("VC_N_FRAMES", "12")),  # floor; scales up with clip length
-        request_timeout=float(os.getenv("LLM_TIMEOUT", "120")),
+        reasoning_effort=os.getenv("LLM_REASONING_EFFORT", ""),
+        n_frames=int(os.getenv("VC_N_FRAMES", "8")),   # floor; scales up with clip length
+        request_timeout=float(os.getenv("LLM_TIMEOUT", "45")),
     )
 
 
