@@ -122,32 +122,48 @@ class LLMClient:
             # and emit the answer directly, skipping its <thought> reasoning block
             # entirely — clean, fast, and it never truncates mid-thought.
             msgs = msgs + [{"role": "assistant", "content": prefill}]
-        payload = {"model": self.s.model, "messages": msgs,
-                   "max_tokens": max_tokens, "temperature": temperature, "top_p": 0.9}
-        if json_mode and prefill is None:
-            payload["response_format"] = {"type": "json_object"}  # structured → no rambling
-        req = urllib.request.Request(
-            f"{self.s.base_url.rstrip('/')}/chat/completions", data=json.dumps(payload).encode(),
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {self.s.api_key}",
-                     "User-Agent": "FourVoices/0.1"})  # default urllib UA is WAF-blocked
+
+        # Google's free Gemma endpoint flaps (intermittent 500s), so try the primary
+        # model with several backoff retries, then fall back to the sibling model.
+        models = [self.s.model]
+        if self.s.model_fallback and self.s.model_fallback != self.s.model:
+            models.append(self.s.model_fallback)
+
         msg = None
-        for attempt in range(4):                     # retry transient throttling / 5xx
-            try:
-                with urllib.request.urlopen(req, timeout=self.s.request_timeout,
-                                            context=_SSL_CTX) as resp:
-                    msg = json.loads(resp.read())["choices"][0]["message"]
+        last_exc: Exception | None = None
+        for model in models:
+            payload = {"model": model, "messages": msgs,
+                       "max_tokens": max_tokens, "temperature": temperature, "top_p": 0.9}
+            if json_mode and prefill is None:
+                payload["response_format"] = {"type": "json_object"}  # structured → no rambling
+            req = urllib.request.Request(
+                f"{self.s.base_url.rstrip('/')}/chat/completions",
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json",
+                         "Authorization": f"Bearer {self.s.api_key}",
+                         "User-Agent": "FourVoices/0.1"})  # default urllib UA is WAF-blocked
+            for attempt in range(5):                 # ride through transient 5xx / throttle
+                try:
+                    with urllib.request.urlopen(req, timeout=self.s.request_timeout,
+                                                context=_SSL_CTX) as resp:
+                        msg = json.loads(resp.read())["choices"][0]["message"]
+                    break
+                except urllib.error.HTTPError as e:
+                    last_exc = e
+                    if e.code in (429, 500, 502, 503, 504) and attempt < 4:
+                        time.sleep(min(2.0 * (attempt + 1), 8.0))
+                        continue
+                    break                            # non-retryable → try next model
+                except (urllib.error.URLError, TimeoutError) as e:
+                    last_exc = e
+                    if attempt < 4:
+                        time.sleep(min(2.0 * (attempt + 1), 8.0))
+                        continue
+                    break
+            if msg is not None:
                 break
-            except urllib.error.HTTPError as e:
-                if e.code in (429, 500, 502, 503, 504) and attempt < 3:
-                    time.sleep(1.5 * (attempt + 1))
-                    continue
-                raise
-            except (urllib.error.URLError, TimeoutError):
-                if attempt < 3:
-                    time.sleep(1.5 * (attempt + 1))
-                    continue
-                raise
+        if msg is None:
+            raise last_exc or RuntimeError("LLM request failed")
         content = msg.get("content") or msg.get("reasoning_content") or ""
         if prefill is not None:
             content = prefill + content

@@ -14,6 +14,7 @@ class Settings:
     base_url: str | None
     api_key: str
     model: str                # a Gemma multimodal model id
+    model_fallback: str       # second Gemma model tried if the primary 5xx's
     n_frames: int             # frames sampled per clip
     request_timeout: float
 
@@ -34,6 +35,9 @@ def load_settings() -> Settings:
         # Google's free OpenAI-compatible endpoint as `gemma-4-26b-a4b-it` (26B MoE,
         # vision). Override via LLM_MODEL for any other Gemma host.
         model=os.getenv("LLM_MODEL", "gemma-4-26b-a4b-it"),
+        # Google's free Gemma endpoint intermittently 500s; 31b is a stable Gemma 4
+        # sibling used as automatic fallback when the primary keeps erroring.
+        model_fallback=os.getenv("LLM_MODEL_FALLBACK", "gemma-4-31b-it"),
         n_frames=int(os.getenv("VC_N_FRAMES", "12")),  # floor; scales up with clip length
         request_timeout=float(os.getenv("LLM_TIMEOUT", "120")),
     )
