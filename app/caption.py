@@ -14,8 +14,8 @@ from .frames import duration_sec, sample_frames
 from .llm import LLMClient
 from .styles import STYLES, accuracy_ok, distinct_ok
 
-_SEC_PER_FRAME = 12   # ~1 frame every 12s of video
-_MAX_FRAMES = 16      # cap (Gemma 4 handles many images; keeps latency/cost sane)
+_SEC_PER_FRAME = 8    # ~1 frame every 8s of video (denser = more faithful grounding)
+_MAX_FRAMES = 20      # cap (Gemma 4 handles many images; keeps latency/cost sane)
 
 
 class VideoCaptioner:

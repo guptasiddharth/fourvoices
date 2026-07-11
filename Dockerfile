@@ -19,7 +19,7 @@ COPY eval ./eval
 # No key → the app runs in offline stub mode (valid output, generic captions).
 ENV LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai \
     LLM_MODEL=gemma-4-26b-a4b-it \
-    VC_N_FRAMES=4
+    VC_N_FRAMES=12
 
 # Track 2 evaluation contract: read /input/tasks.json → write /output/results.json → exit 0.
 # (The FastAPI server + Streamlit demo are separate modules; override CMD to use them.)

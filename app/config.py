@@ -34,7 +34,7 @@ def load_settings() -> Settings:
         # Google's free OpenAI-compatible endpoint as `gemma-4-26b-a4b-it` (26B MoE,
         # vision). Override via LLM_MODEL for any other Gemma host.
         model=os.getenv("LLM_MODEL", "gemma-4-26b-a4b-it"),
-        n_frames=int(os.getenv("VC_N_FRAMES", "8")),   # floor; scales up with clip length
+        n_frames=int(os.getenv("VC_N_FRAMES", "12")),  # floor; scales up with clip length
         request_timeout=float(os.getenv("LLM_TIMEOUT", "120")),
     )
 

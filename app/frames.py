@@ -51,7 +51,7 @@ def sample_frames(clip_path: str, n: int = 8) -> list[str]:
 
     subprocess.run(
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", clip_path,
-         "-vf", vf, "-vsync", "vfr", "-frames:v", str(n), pattern],
+         "-vf", vf, "-vsync", "vfr", "-q:v", "2", "-frames:v", str(n), pattern],
         check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     frames = sorted(os.path.join(out_dir, f) for f in os.listdir(out_dir)

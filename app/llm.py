@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 
 from .config import SETTINGS, Settings
-from .styles import STYLES, Style, generation_prompt
+from .styles import STYLES, Style, generation_prompt, style_system
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -54,6 +54,11 @@ def _degenerate(text: str) -> bool:
         return True
     if "<thought>" in text or "</thought>" in text:
         return True
+    low = text.lower()
+    if any(x in text for x in ("{", "}", "```")) or "<thought" in low:
+        return True                                      # leaked JSON/fence/reasoning
+    if low.lstrip().startswith(("thought", "*", "-", "1.", "option")):
+        return True                                      # reasoning/list preamble leaked
     words = text.split()
     if len(words) > 60:                                  # a caption is one sentence
         return True
@@ -69,23 +74,39 @@ def _json_field(raw: str, field: str) -> str:
     """Extract one field from a JSON reply; fall back to cleaned text if needed.
     This is what tames reasoning models — the answer lives in the field, the
     brainstorming (if any) stays outside and is discarded."""
-    t = raw
+    t = raw.replace("```json", " ").replace("```", " ")
     for close in ("</think>", "</thought>"):
         if close in t:
             t = t.rsplit(close, 1)[-1]
-    m = re.search(r"\{.*\}", t, re.S)
-    if m:
-        try:
-            v = json.loads(m.group()).get(field)
-            if v not in (None, ""):
-                return str(v).strip().strip('"').strip()
-        except Exception:
-            pass
-    return _clean(raw)
+    # Try each flat {...} candidate (our JSON is flat) then a greedy fallback —
+    # this pulls a valid {"field": "..."} out even when it's buried in reasoning.
+    for pat in (r"\{[^{}]*\}", r"\{.*\}"):
+        for m in re.finditer(pat, t, re.S):
+            try:
+                v = json.loads(m.group()).get(field)
+                if v not in (None, ""):
+                    return str(v).strip().strip('"').strip()
+            except Exception:
+                continue
+    return _clean(t)
 
 
 # Offline stand-in for Gemma's video-frame understanding.
 _STUB_FACTS = "a person waves at a small dog running across a sunlit park"
+
+
+def _bad_facts(text: str) -> bool:
+    """Validity check for the grounding paragraph (which is legitimately long, so
+    the caption-oriented _degenerate rules don't apply). Flags empty/leaked/looped."""
+    if not text or len(text.split()) < 4:
+        return True
+    if "<thought" in text.lower() or "```" in text:
+        return True
+    words = text.split()
+    for i in range(len(words) - 3):
+        if words[i] == words[i + 1] == words[i + 2] == words[i + 3]:
+            return True
+    return False
 
 
 class LLMClient:
@@ -93,7 +114,8 @@ class LLMClient:
         self.s = settings or SETTINGS
 
     def _chat(self, messages: list[dict], max_tokens: int = 640,
-              json_mode: bool = False, prefill: str | None = None) -> str:
+              json_mode: bool = False, prefill: str | None = None,
+              temperature: float = 0.4) -> str:
         msgs = list(messages)
         if prefill is not None:
             # Prefilling the assistant turn makes Gemma 4 continue from `prefill`
@@ -101,7 +123,7 @@ class LLMClient:
             # entirely — clean, fast, and it never truncates mid-thought.
             msgs = msgs + [{"role": "assistant", "content": prefill}]
         payload = {"model": self.s.model, "messages": msgs,
-                   "max_tokens": max_tokens, "temperature": 0.3, "top_p": 0.9}
+                   "max_tokens": max_tokens, "temperature": temperature, "top_p": 0.9}
         if json_mode and prefill is None:
             payload["response_format"] = {"type": "json_object"}  # structured → no rambling
         req = urllib.request.Request(
@@ -136,66 +158,49 @@ class LLMClient:
         if self.s.mode == "stub" or not frame_paths:
             return _STUB_FACTS
         content = [{"type": "text", "text":
-                    "These frames are sampled in chronological order and span the "
-                    "ENTIRE clip from start to finish. Summarize what happens across "
-                    "the whole clip: the setting, the main subjects, and how the action "
-                    "progresses from beginning to end. 2-4 sentences. Describe only what "
-                    "is visibly shown — no invented detail, no dialogue. Output just the "
-                    "summary."}]
+                    "You are a meticulous visual analyst. These images are keyframes "
+                    "sampled in order across a single short video clip. In 2-4 factual "
+                    "sentences, describe: the setting/location, the main subjects, the "
+                    "actions or motion across the frames from start to finish, the mood, "
+                    "notable visual details (colors, lighting, weather), and any visible "
+                    "text, signage, screens, or technology. Neutral and factual — no humor, "
+                    "no opinion, no invented detail. English only.\n"
+                    'Respond with ONLY a JSON object: {"description": "<the paragraph>"}.'}]
         for p in frame_paths:
             with open(p, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
             mime = mimetypes.guess_type(p)[0] or "image/jpeg"
             content.append({"type": "image_url",
                             "image_url": {"url": f"data:{mime};base64,{b64}"}})
-        # Plain (no JSON) — vision description is low-creativity and stays clean;
-        # avoids any vision+response_format incompatibility on the target model.
-        # Room for Gemma's <thought> block plus the summary; _clean drops the thought.
+        # JSON + assistant-prefill of "{" skips Gemma's <thought> entirely (as in
+        # styling), so the paragraph comes back clean without a huge token budget.
+        # Low temperature for faithfulness.
         msg = [{"role": "user", "content": content}]
-        facts = _clean(self._chat(msg, max_tokens=1024))
-        if _degenerate(facts):                       # a looped/garbled description → retry once
-            facts = _clean(self._chat(msg, max_tokens=1024))
-        return _STUB_FACTS if _degenerate(facts) else facts
+        facts = _json_field(self._chat(msg, max_tokens=500, prefill="{", temperature=0.2),
+                            "description")
+        if _bad_facts(facts):                        # leaked/looped/empty → retry once
+            facts = _json_field(self._chat(msg, max_tokens=500, prefill="{", temperature=0.2),
+                                "description")
+        return _STUB_FACTS if _bad_facts(facts) else facts
 
     def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
-        """All requested styles in ONE structured JSON call (efficient + coherent).
-        Falls back to per-style generation for anything missing/unparseable."""
+        """One focused call per style (each with its own role + few-shots). Separate
+        calls beat a single all-styles JSON call: the model nails one register at a
+        time instead of diluting four voices across one generation."""
         by = {s.key: s for s in STYLES}
         keys = [k for k in keys if k in by]
-        if self.s.mode == "stub":
-            return {k: by[k].stub_template.format(facts=facts.rstrip(".")) for k in keys}
-        guide = "\n".join(f'- "{k}" ({by[k].name}): {by[k].guidance}' for k in keys)
-        example = ", ".join(f'"{k}": "..."' for k in keys)
-        prompt = (f"GROUNDED visual facts (do not add anything not present here):\n{facts}\n\n"
-                  f"Write ONE caption for EACH style below — faithful to the facts, one short "
-                  f"sentence each, tone unmistakable:\n{guide}\n\n"
-                  f"Return ONLY a JSON object mapping each style key to its caption: {{{example}}}. "
-                  f"No other text.")
-        raw = self._chat([{"role": "system", "content": _SYSTEM},
-                          {"role": "user", "content": prompt}], max_tokens=400, prefill="{")
-        out: dict[str, str] = {}
-        m = re.search(r"\{.*\}", raw, re.S)
-        if m:
-            try:
-                data = json.loads(m.group())
-                for k in keys:
-                    v = str(data.get(k, "")).strip().strip('"')
-                    if v and not _degenerate(v):        # drop looped/garbled values
-                        out[k] = v
-            except Exception:  # noqa: BLE001
-                pass
-        for k in keys:                      # backfill any missing/rejected style individually
-            if not out.get(k):
-                out[k] = self.style_caption(facts, by[k])
-        return out
+        return {k: self.style_caption(facts, by[k]) for k in keys}
 
     def style_caption(self, facts: str, style: Style) -> str:
         if self.s.mode == "stub":
             return style.stub_template.format(facts=facts.rstrip("."))
-        msg = [{"role": "system", "content": _SYSTEM},
+        msg = [{"role": "system", "content": style_system(style)},
                {"role": "user", "content": generation_prompt(facts, style)}]
-        for _ in range(2):                              # one retry on a degenerate sample
-            cap = _json_field(self._chat(msg, max_tokens=100, prefill="{"), "caption")
+        # Higher temperature so the humor/irony actually lands; the guard + stub
+        # fallback keep a bad sample from ever shipping.
+        for _ in range(3):                              # retries on a degenerate sample
+            cap = _json_field(self._chat(msg, max_tokens=110, prefill="{",
+                                         temperature=0.5), "caption")
             if not _degenerate(cap):
                 return cap
         return style.stub_template.format(facts=facts.rstrip("."))   # clean, never garbage
@@ -206,7 +211,7 @@ class LLMClient:
             return True
         raw = self._chat([{"role": "user", "content":
             f'Return JSON {{"match": true|false}}: is this caption clearly in a '
-            f'{style.name} tone ({style.guidance})?\n\nCaption: {caption}'}],
+            f'{style.name} tone? {style.role}\n\nCaption: {caption}'}],
             max_tokens=300, json_mode=True)
         mo = re.search(r"\{.*\}", raw, re.S)
         try:
