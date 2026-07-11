@@ -40,7 +40,7 @@ def load_settings() -> Settings:
         # sibling used as automatic fallback when the primary keeps erroring.
         model_fallback=os.getenv("LLM_MODEL_FALLBACK", "gemma-4-31b-it"),
         reasoning_effort=os.getenv("LLM_REASONING_EFFORT", ""),
-        n_frames=int(os.getenv("VC_N_FRAMES", "8")),   # floor; scales up with clip length
+        n_frames=int(os.getenv("VC_N_FRAMES", "12")),  # floor; scales up with clip length
         request_timeout=float(os.getenv("LLM_TIMEOUT", "45")),
     )
 

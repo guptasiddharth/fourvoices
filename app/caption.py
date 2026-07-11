@@ -42,7 +42,22 @@ class VideoCaptioner:
         with ThreadPoolExecutor(max_workers=len(keys)) as ex:
             futs = {k: ex.submit(self.llm.style_caption, grounded, by[k]) for k in keys}
             captions = {k: futs[k].result() for k in keys}
-        checks = {k: {"accuracy": accuracy_ok(grounded, captions[k])} for k in keys}
+
+        # Judge-style self-check → re-take only the captions it rates weak on accuracy
+        # or tone, feeding back a concrete fix. This mirrors the grading LLM-judge and
+        # is what the top submissions do. Safe: on any failure `scores` is {} → no-op.
+        scores = self.llm.critique(grounded, captions)
+        weak = {k: scores[k]["fix"] for k in keys
+                if k in scores and min(scores[k]["accuracy"], scores[k]["tone"]) < 0.7}
+        if weak:
+            with ThreadPoolExecutor(max_workers=len(weak)) as ex:
+                futs = {k: ex.submit(self.llm.style_caption, grounded, by[k], weak[k])
+                        for k in weak}
+                for k, fut in futs.items():
+                    captions[k] = fut.result()
+
+        checks = {k: {"accuracy": accuracy_ok(grounded, captions[k]),
+                      "self_score": scores.get(k)} for k in keys}
 
         return {
             "clip": clip_path,

@@ -2,28 +2,28 @@
   {
     "task_id": "v1",
     "captions": {
-      "formal": "A time-lapse sequence shows motion-blurred vehicles speeding through a sunlit urban intersection lined with yellow autumn trees and high-rise buildings, including a structure marked 'KOREA TECTES ENGINEERING'.",
-      "sarcastic": "Witness the breathtaking spectacle of cars driving through an intersection, a chaotic event carefully framed by some trees and a sign for Korea Tectes Engineering.",
-      "humorous_tech": "This intersection is processing traffic with the throughput of a well-optimized load balancer while the autumn leaves provide the only static assets in sight.",
-      "humorous_non_tech": "The cars moved so fast they turned into yellow streaks, proving that autumn is the one season where traffic actually has a need for speed."
+      "formal": "Motion-blurred vehicles stream through a sunlit urban intersection framed by yellow autumn trees and high-rise apartments, with signage for Korea Tectes Engineering visible on a building to the left.",
+      "sarcastic": "Witness the breathtaking spectacle of cars driving through an intersection, accelerated so you don't have to waste your precious life watching paint dry.",
+      "humorous_tech": "The intersection is handling peak traffic load with zero latency while the autumn trees provide a vibrant UI refresh.",
+      "humorous_non_tech": "The city traffic moves so fast the cars have officially blurred into streaks of pure anxiety."
     }
   },
   {
     "task_id": "v2",
     "captions": {
-      "formal": "A small ginger kitten walks forward from beneath low-hanging branches in a sun-dappled outdoor area, moving steadily toward the camera with a direct gaze.",
-      "sarcastic": "Behold the sheer audacity of a ginger kitten executing a forward locomotion strategy in the dirt.",
-      "humorous_tech": "This ginger kitten is deploying to production with zero testing and absolute confidence.",
-      "humorous_non_tech": "This tiny ginger boss is marching toward you with the confidence of someone who knows you will move."
+      "formal": "A small ginger kitten walks forward beneath low-hanging branches in a sun-dappled outdoor area, its fur highlighted by bright natural light filtering through dense green foliage.",
+      "sarcastic": "Witness the sheer audacity of a ginger kitten executing the radical maneuver of walking forward.",
+      "humorous_tech": "This ginger kitten is deploying to production with the cautious, step-by-step gait of an engineer who just broke the build and is afraid to touch anything else.",
+      "humorous_non_tech": "This ginger kitten is walking with the deliberate confidence of someone who just remembered they left the stove on."
     }
   },
   {
     "task_id": "v3",
     "captions": {
-      "formal": "A woman in a beige jacket and orange top types on a white keyboard at a desk in a modern office with glass partitions and circular ceiling lights.",
-      "sarcastic": "Witness the sheer audacity of a woman in a beige jacket actually using her keyboard in a modern office.",
-      "humorous_tech": "She is typing furiously to push a hotfix before the standup meeting realizes the main branch is on fire.",
-      "humorous_non_tech": "She is typing with the intensity of someone who just remembered they left the oven on, but it is probably just an email."
+      "formal": "A woman in a beige jacket and orange top types on a white keyboard at a glass-walled office desk, her attention fixed on the silver desktop monitor before her.",
+      "sarcastic": "Witness the sheer audacity of a woman typing on a keyboard in an office, a radical act of productivity that surely defies the laws of physics.",
+      "humorous_tech": "She is refactoring her life while the tangled wires on the desk serve as a physical reminder of the technical debt she is ignoring.",
+      "humorous_non_tech": "She is typing with the intense focus of someone trying to remember if they actually locked the front door."
     }
   }
 ]
