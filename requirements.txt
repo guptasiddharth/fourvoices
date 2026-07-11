@@ -1,4 +1,5 @@
 # Service layer (the core pipeline + stub are stdlib-only).
+certifi>=2024.2      # trusted CA bundle for the HTTPS calls to the Gemma endpoint
 fastapi>=0.110
 uvicorn>=0.29
 pydantic>=2.6

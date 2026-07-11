@@ -8,6 +8,8 @@ import json
 import mimetypes
 import re
 import ssl
+import time
+import urllib.error
 import urllib.request
 
 from .config import SETTINGS, Settings
@@ -34,19 +36,44 @@ def _clean(text: str) -> str:
     if not text:
         return ""
     raw = text.strip()
-    if "</think>" in text:
-        text = text.rsplit("</think>", 1)[-1]
+    for close in ("</think>", "</thought>"):        # Gemma 4 uses <thought>…</thought>
+        if close in text:
+            text = text.rsplit(close, 1)[-1]
     m = re.search(r"<c>(.*?)</c>", text, re.S | re.I)
     if m and m.group(1).strip():
         text = m.group(1)
     return (text.strip().strip('"').strip()) or raw
 
 
+def _degenerate(text: str) -> bool:
+    """True if text looks like a repetition loop or junk — never ship it.
+    Gemma 4 (with its <thought> suppressed) will occasionally spin into
+    'groundbreaking groundbreaking …' loops; this is the backstop that catches
+    them so a bad sample falls back to a clean caption instead of shipping garbage."""
+    if not text:
+        return True
+    if "<thought>" in text or "</thought>" in text:
+        return True
+    words = text.split()
+    if len(words) > 60:                                  # a caption is one sentence
+        return True
+    for i in range(len(words) - 3):                      # 4+ identical words in a row
+        if words[i] == words[i + 1] == words[i + 2] == words[i + 3]:
+            return True
+    if len(words) >= 12 and len({w.lower() for w in words}) / len(words) < 0.5:
+        return True                                      # very low lexical variety
+    return False
+
+
 def _json_field(raw: str, field: str) -> str:
     """Extract one field from a JSON reply; fall back to cleaned text if needed.
     This is what tames reasoning models — the answer lives in the field, the
     brainstorming (if any) stays outside and is discarded."""
-    m = re.search(r"\{.*\}", raw, re.S)
+    t = raw
+    for close in ("</think>", "</thought>"):
+        if close in t:
+            t = t.rsplit(close, 1)[-1]
+    m = re.search(r"\{.*\}", t, re.S)
     if m:
         try:
             v = json.loads(m.group()).get(field)
@@ -65,19 +92,44 @@ class LLMClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self.s = settings or SETTINGS
 
-    def _chat(self, messages: list[dict], max_tokens: int = 640, json_mode: bool = False) -> str:
-        payload = {"model": self.s.model, "messages": messages,
-                   "max_tokens": max_tokens, "temperature": 0.4}
-        if json_mode:
+    def _chat(self, messages: list[dict], max_tokens: int = 640,
+              json_mode: bool = False, prefill: str | None = None) -> str:
+        msgs = list(messages)
+        if prefill is not None:
+            # Prefilling the assistant turn makes Gemma 4 continue from `prefill`
+            # and emit the answer directly, skipping its <thought> reasoning block
+            # entirely — clean, fast, and it never truncates mid-thought.
+            msgs = msgs + [{"role": "assistant", "content": prefill}]
+        payload = {"model": self.s.model, "messages": msgs,
+                   "max_tokens": max_tokens, "temperature": 0.3, "top_p": 0.9}
+        if json_mode and prefill is None:
             payload["response_format"] = {"type": "json_object"}  # structured → no rambling
         req = urllib.request.Request(
             f"{self.s.base_url.rstrip('/')}/chat/completions", data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json",
                      "Authorization": f"Bearer {self.s.api_key}",
                      "User-Agent": "FourVoices/0.1"})  # default urllib UA is WAF-blocked
-        with urllib.request.urlopen(req, timeout=self.s.request_timeout, context=_SSL_CTX) as resp:
-            msg = json.loads(resp.read())["choices"][0]["message"]
-        return (msg.get("content") or msg.get("reasoning_content") or "").strip()
+        msg = None
+        for attempt in range(4):                     # retry transient throttling / 5xx
+            try:
+                with urllib.request.urlopen(req, timeout=self.s.request_timeout,
+                                            context=_SSL_CTX) as resp:
+                    msg = json.loads(resp.read())["choices"][0]["message"]
+                break
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 500, 502, 503, 504) and attempt < 3:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+            except (urllib.error.URLError, TimeoutError):
+                if attempt < 3:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+        content = msg.get("content") or msg.get("reasoning_content") or ""
+        if prefill is not None:
+            content = prefill + content
+        return content.strip()
 
     def describe_frames(self, frame_paths: list[str]) -> str:
         """Gemma multimodal → neutral, grounded visual facts for the clip."""
@@ -98,8 +150,12 @@ class LLMClient:
                             "image_url": {"url": f"data:{mime};base64,{b64}"}})
         # Plain (no JSON) — vision description is low-creativity and stays clean;
         # avoids any vision+response_format incompatibility on the target model.
-        raw = self._chat([{"role": "user", "content": content}], max_tokens=400)
-        return _clean(raw)
+        # Room for Gemma's <thought> block plus the summary; _clean drops the thought.
+        msg = [{"role": "user", "content": content}]
+        facts = _clean(self._chat(msg, max_tokens=1024))
+        if _degenerate(facts):                       # a looped/garbled description → retry once
+            facts = _clean(self._chat(msg, max_tokens=1024))
+        return _STUB_FACTS if _degenerate(facts) else facts
 
     def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
         """All requested styles in ONE structured JSON call (efficient + coherent).
@@ -116,16 +172,19 @@ class LLMClient:
                   f"Return ONLY a JSON object mapping each style key to its caption: {{{example}}}. "
                   f"No other text.")
         raw = self._chat([{"role": "system", "content": _SYSTEM},
-                          {"role": "user", "content": prompt}], max_tokens=900, json_mode=True)
+                          {"role": "user", "content": prompt}], max_tokens=400, prefill="{")
         out: dict[str, str] = {}
         m = re.search(r"\{.*\}", raw, re.S)
         if m:
             try:
                 data = json.loads(m.group())
-                out = {k: str(data.get(k, "")).strip().strip('"') for k in keys}
+                for k in keys:
+                    v = str(data.get(k, "")).strip().strip('"')
+                    if v and not _degenerate(v):        # drop looped/garbled values
+                        out[k] = v
             except Exception:  # noqa: BLE001
                 pass
-        for k in keys:                      # backfill any missing style individually
+        for k in keys:                      # backfill any missing/rejected style individually
             if not out.get(k):
                 out[k] = self.style_caption(facts, by[k])
         return out
@@ -133,10 +192,13 @@ class LLMClient:
     def style_caption(self, facts: str, style: Style) -> str:
         if self.s.mode == "stub":
             return style.stub_template.format(facts=facts.rstrip("."))
-        raw = self._chat([{"role": "system", "content": _SYSTEM},
-                          {"role": "user", "content": generation_prompt(facts, style)}],
-                         json_mode=True)
-        return _json_field(raw, "caption")
+        msg = [{"role": "system", "content": _SYSTEM},
+               {"role": "user", "content": generation_prompt(facts, style)}]
+        for _ in range(2):                              # one retry on a degenerate sample
+            cap = _json_field(self._chat(msg, max_tokens=100, prefill="{"), "caption")
+            if not _degenerate(cap):
+                return cap
+        return style.stub_template.format(facts=facts.rstrip("."))   # clean, never garbage
 
     def check_tone(self, caption: str, style: Style) -> bool:
         """LLM tone verification (mirrors the judge). Stub trusts the template."""

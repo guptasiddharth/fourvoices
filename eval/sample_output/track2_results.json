@@ -1,0 +1,29 @@
+[
+  {
+    "task_id": "v1",
+    "captions": {
+      "formal": "Vehicular traffic flows through a multi-lane city street lined with yellow autumn foliage and tall buildings.",
+      "sarcastic": "Another riveting day of watching cars move through a city.",
+      "humorous_tech": "The city traffic is experiencing high latency in the production environment. \ud83d\ude97",
+      "humorous_non_tech": "Even the trees are dressed up in their best yellow outfits for the commute! \ud83c\udf42"
+    }
+  },
+  {
+    "task_id": "v2",
+    "captions": {
+      "formal": "An orange kitten walks across a dirt ground in a wooded area with green leaves and bushes.",
+      "sarcastic": "Another orange kitten walking through the woods, how groundbreaking.",
+      "humorous_tech": "The orange kitten's movement through the bushes is experiencing zero latency. \ud83d\udc08",
+      "humorous_non_tech": "This little orange fluff-ball is on a very important mission to demand more treats."
+    }
+  },
+  {
+    "task_id": "v3",
+    "captions": {
+      "formal": "A woman sits at a desk in an office setting and types on a computer keyboard while remaining focused on the monitor.",
+      "sarcastic": "Groundbreaking news: a person is typing on a computer.",
+      "humorous_tech": "Her latency is low, but the code she's typing-in is the feeling of pure joy. \ud83d\udcbb",
+      "humorous_non_tech": "She's currently pretending to look very important while actually just writing a grocery list. \ud83d\udcdd"
+    }
+  }
+]
