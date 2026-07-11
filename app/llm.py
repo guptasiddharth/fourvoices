@@ -188,14 +188,21 @@ class LLMClient:
         if self.s.mode == "stub" or not frame_paths:
             return _STUB_FACTS
         content = [{"type": "text", "text":
-                    "You are a meticulous visual analyst. These images are keyframes "
-                    "sampled in order across a single short video clip. In 2-4 factual "
-                    "sentences, describe: the setting/location, the main subjects, the "
-                    "actions or motion across the frames from start to finish, the mood, "
-                    "notable visual details (colors, lighting, weather), and any visible "
-                    "text, signage, screens, or technology. Neutral and factual — no humor, "
-                    "no opinion, no invented detail. English only.\n"
-                    'Respond with ONLY a JSON object: {"description": "<the paragraph>"}.'}]
+                    "You are a meticulous visual analyst extracting the MAXIMUM faithful "
+                    "detail from a video clip. These images are keyframes sampled in order "
+                    "from start to finish. Write a thorough, richly specific factual "
+                    "description (4-7 sentences) covering everything observable:\n"
+                    "- every main subject: how many, and their appearance (species/gender, "
+                    "clothing, colors, distinguishing features);\n"
+                    "- exactly what actions or motion occur and how they progress across the "
+                    "frames from beginning to end;\n"
+                    "- the setting/location and background;\n"
+                    "- dominant and accent colors, lighting, time of day, weather;\n"
+                    "- any clearly legible text, signage, logos, screen content, or numbers.\n"
+                    "Be as concrete and specific as possible. CRITICAL: report ONLY what is "
+                    "actually visible — never invent or guess. If text or a logo is not "
+                    "clearly legible, do not guess it. No humor, no opinion. English only.\n"
+                    'Respond with ONLY a JSON object: {"description": "<the detailed paragraph>"}.'}]
         for p in frame_paths:
             with open(p, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
@@ -206,9 +213,9 @@ class LLMClient:
         # styling), so the paragraph comes back clean without a huge token budget.
         # Low temperature for faithfulness.
         msg = [{"role": "user", "content": content}]
-        facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
+        facts = _json_field(self._ask_json(msg, 700, 0.2), "description")   # room for peak detail
         if _bad_facts(facts):                        # leaked/looped/empty → retry once
-            facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
+            facts = _json_field(self._ask_json(msg, 700, 0.2), "description")
         return _STUB_FACTS if _bad_facts(facts) else facts
 
     def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
