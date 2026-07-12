@@ -190,20 +190,11 @@ class LLMClient:
         content = [{"type": "text", "text":
                     "You are a meticulous visual analyst. These images are keyframes "
                     "sampled in order across a single short video clip. In 2-4 factual "
-                    "sentences, describe: the setting/location, the main subject(s), and "
-                    "especially HOW the main subject MOVES and its demeanor across the frames "
-                    "from start to finish (e.g. slow and cautious vs. fast and confident, and "
-                    "any change like a tail rising or a head turning), plus the mood and "
-                    "notable colors and lighting.\n"
-                    "FAITHFULNESS RULES (critical — accuracy is judged):\n"
-                    "- Describe ONLY what is clearly visible. Never invent or over-state.\n"
-                    "- Do NOT transcribe or guess words on signs, logos, banners, or brands "
-                    "unless the text is large and unmistakably legible. If you are not "
-                    "certain of the exact wording, just say 'a building sign' / 'banners' "
-                    "WITHOUT quoting text — a wrong guess is worse than omitting it.\n"
-                    "- Get the main subject's demeanor right; do not upgrade a cautious/"
-                    "hesitant subject into a confident one.\n"
-                    "Neutral and factual, no humor, no opinion. English only.\n"
+                    "sentences, describe: the setting/location, the main subjects, the "
+                    "actions or motion across the frames from start to finish, the mood, "
+                    "notable visual details (colors, lighting, weather), and any visible "
+                    "text, signage, screens, or technology. Neutral and factual — no humor, "
+                    "no opinion, no invented detail. English only.\n"
                     'Respond with ONLY a JSON object: {"description": "<the paragraph>"}.'}]
         for p in frame_paths:
             with open(p, "rb") as f:
