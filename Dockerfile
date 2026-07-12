@@ -27,7 +27,7 @@ ENV LLM_BASE_URL=https://api.fireworks.ai/inference/v1 \
     LLM_MODEL=accounts/fireworks/models/qwen3p7-plus \
     LLM_MODEL_FALLBACK=accounts/fireworks/models/kimi-k2p6 \
     LLM_REASONING_EFFORT=none \
-    VC_N_FRAMES=12 \
+    VC_N_FRAMES=8 \
     LLM_API_KEY=${LLM_API_KEY}
 
 # Track 2 evaluation contract: read /input/tasks.json → write /output/results.json → exit 0.

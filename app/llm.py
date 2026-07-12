@@ -188,21 +188,14 @@ class LLMClient:
         if self.s.mode == "stub" or not frame_paths:
             return _STUB_FACTS
         content = [{"type": "text", "text":
-                    "You are a meticulous visual analyst extracting the MAXIMUM faithful "
-                    "detail from a video clip. These images are keyframes sampled in order "
-                    "from start to finish. Write a thorough, richly specific factual "
-                    "description (4-7 sentences) covering everything observable:\n"
-                    "- every main subject: how many, and their appearance (species/gender, "
-                    "clothing, colors, distinguishing features);\n"
-                    "- exactly what actions or motion occur and how they progress across the "
-                    "frames from beginning to end;\n"
-                    "- the setting/location and background;\n"
-                    "- dominant and accent colors, lighting, time of day, weather;\n"
-                    "- any clearly legible text, signage, logos, screen content, or numbers.\n"
-                    "Be as concrete and specific as possible. CRITICAL: report ONLY what is "
-                    "actually visible — never invent or guess. If text or a logo is not "
-                    "clearly legible, do not guess it. No humor, no opinion. English only.\n"
-                    'Respond with ONLY a JSON object: {"description": "<the detailed paragraph>"}.'}]
+                    "You are a meticulous visual analyst. These images are keyframes "
+                    "sampled in order across a single short video clip. In 2-4 factual "
+                    "sentences, describe: the setting/location, the main subjects, the "
+                    "actions or motion across the frames from start to finish, the mood, "
+                    "notable visual details (colors, lighting, weather), and any visible "
+                    "text, signage, screens, or technology. Neutral and factual — no humor, "
+                    "no opinion, no invented detail. English only.\n"
+                    'Respond with ONLY a JSON object: {"description": "<the paragraph>"}.'}]
         for p in frame_paths:
             with open(p, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
@@ -213,9 +206,9 @@ class LLMClient:
         # styling), so the paragraph comes back clean without a huge token budget.
         # Low temperature for faithfulness.
         msg = [{"role": "user", "content": content}]
-        facts = _json_field(self._ask_json(msg, 700, 0.2), "description")   # room for peak detail
+        facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
         if _bad_facts(facts):                        # leaked/looped/empty → retry once
-            facts = _json_field(self._ask_json(msg, 700, 0.2), "description")
+            facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
         return _STUB_FACTS if _bad_facts(facts) else facts
 
     def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
@@ -226,11 +219,11 @@ class LLMClient:
         keys = [k for k in keys if k in by]
         return {k: self.style_caption(facts, by[k]) for k in keys}
 
-    def style_caption(self, facts: str, style: Style, fix: str | None = None) -> str:
+    def style_caption(self, facts: str, style: Style) -> str:
         if self.s.mode == "stub":
             return style.stub_template.format(facts=facts.rstrip("."))
         msg = [{"role": "system", "content": style_system(style)},
-               {"role": "user", "content": generation_prompt(facts, style, fix)}]
+               {"role": "user", "content": generation_prompt(facts, style)}]
         # Higher temperature so the humor/irony actually lands; the guard + stub
         # fallback keep a bad sample from ever shipping.
         for _ in range(2):                              # retry once on a degenerate sample
@@ -238,58 +231,6 @@ class LLMClient:
             if not _degenerate(cap):
                 return cap
         return style.stub_template.format(facts=facts.rstrip("."))   # clean, never garbage
-
-    def critique(self, facts: str, captions: dict[str, str]) -> dict[str, dict]:
-        """Judge-style self-check in ONE call: score each caption on accuracy (claims
-        supported by the facts) + tone (matches its style), with a short fix note for
-        weak ones. Mirrors the grading LLM-judge so we can re-take weak captions.
-        Returns {} on any failure so the caller safely keeps the originals."""
-        if self.s.mode == "stub" or not captions:
-            return {}
-        by = {s.key: s for s in STYLES}
-        listing = "\n".join(
-            f'- {k} ({by[k].name if k in by else k}): "{c}"' for k, c in captions.items())
-        prompt = (
-            f"You are a strict caption judge. Ground truth (what the clip actually shows):\n"
-            f"{facts}\n\n"
-            f"The four styles are: formal (objective/factual), sarcastic (dry ironic humor), "
-            f"humorous_tech (a joke using a tech/programming metaphor), humorous_non_tech "
-            f"(everyday relatable humor).\n\n"
-            f"For EACH caption score two things from 0.0 to 1.0:\n"
-            f"- accuracy: is the real main SUBJECT and ACTION correct and consistent with the "
-            f"ground truth? IMPORTANT: for the humorous and sarcastic styles, jokes, "
-            f"exaggeration, hyperbole, and metaphors (including tech analogies like 'deploying "
-            f"to prod') are REQUIRED and are NOT hallucinations — do not lower accuracy for "
-            f"them. Lower accuracy ONLY when the caption states a concrete visual fact that is "
-            f"false or absent: the wrong subject, or invented objects/people/text/actions "
-            f"presented as literally real (e.g. 'a spaceship lands').\n"
-            f"- tone: does it clearly and strongly match its named style?\n"
-            f"For any caption scoring below 0.8 on either axis, give a short concrete 'fix'.\n\n"
-            f"Captions:\n{listing}\n\n"
-            f'Return ONLY JSON mapping each style key to {{"accuracy": n, "tone": n, "fix": "..."}}.')
-        try:
-            raw = self._ask_json([{"role": "user", "content": prompt}], 500, 0.0)
-        except Exception:  # noqa: BLE001
-            return {}
-        t = raw.replace("```json", " ").replace("```", " ")
-        m = re.search(r"\{.*\}", t, re.S)
-        if not m:
-            return {}
-        try:
-            data = json.loads(m.group())
-        except Exception:  # noqa: BLE001
-            return {}
-        out: dict[str, dict] = {}
-        for k in captions:
-            v = data.get(k)
-            if isinstance(v, dict):
-                try:
-                    out[k] = {"accuracy": float(v.get("accuracy", 1.0)),
-                              "tone": float(v.get("tone", 1.0)),
-                              "fix": str(v.get("fix", "") or "")}
-                except (TypeError, ValueError):
-                    continue
-        return out
 
     def check_tone(self, caption: str, style: Style) -> bool:
         """LLM tone verification (mirrors the judge). Stub trusts the template."""

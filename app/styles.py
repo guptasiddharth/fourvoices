@@ -22,63 +22,54 @@ class Style:
     stub_template: str        # deterministic offline fallback, distinct per style
 
 
-# Shared output contract appended to every style's system prompt. The anchor rule
-# (name the real subject + action) + anti-hallucination + no-hedge rules target the
-# ACCURACY axis directly — they stop the joke from eating the facts.
+# Shared output contract appended to every style's system prompt. The
+# anti-hallucination + no-hedge rules target the accuracy axis directly.
 _OUTPUT_RULES = (
-    "HARD RULES:\n"
-    "- Anchor the caption to the ACTUAL main subject and the action they are doing, "
-    "taken from the scene description. The tone/persona colors the caption but must "
-    "NEVER replace or contradict the facts — a reader must still learn what the clip shows.\n"
-    "- One tight, punchy caption: a single sentence is ideal (two SHORT sentences only "
-    "if a joke genuinely needs setup then punchline).\n"
-    "- Be concrete. Never hedge ('a video clip', 'appears to be', 'some kind of').\n"
-    "- Never invent objects, text, brands, people, or actions that are not in the "
-    "description. Do not guess dialogue or off-screen context.\n"
-    "- Plain English only. No emoji, no hashtags, no quotes, no labels, no preamble.\n"
-    "- Vary your phrasing and sentence openings; do not fall back on a fixed template."
+    "Write ONE tight, punchy caption — a single sentence is ideal (two SHORT "
+    "sentences only if a joke truly needs a setup and a punchline). Be concrete "
+    "and specific: name the actual subject, action, and setting from the scene "
+    "description. Never hedge (no 'a video clip', 'appears to be', 'some kind "
+    "of'). Never invent objects, text, brands, people, or actions that are not "
+    "in the description. No emoji, no hashtags, no quotes, no preamble."
 )
 
 
 STYLES: list[Style] = [
     Style(
         "formal", "Formal",
-        "You are a documentary narrator writing a news photo caption. Register: "
-        "objective, precise, factual, third person, present tense. No humor, no "
-        "opinion, no exclamation marks — report exactly what is shown, richly and "
-        "specifically (subjects, actions, setting, notable visible detail).",
+        "Write a FORMAL caption: objective, precise, and factual, in the register "
+        "of a documentary narrator or a news photo caption. Third person, present "
+        "tense. No humor, no opinion, no exclamation marks — report exactly what is shown.",
         ("Golden autumn foliage lines a busy boulevard as vehicles and pedestrians move steadily along the avenue.",
-         "A young woman in a modern office types at a white keyboard, her attention fixed on the monitor before her."),
+         "A young woman works at a desk in a modern office, typing on a keyboard while focused on a monitor."),
         "The footage shows {facts}.",
     ),
     Style(
         "sarcastic", "Sarcastic",
-        "You are a deadpan, faintly condescending narrator who finds the scene "
-        "thoroughly unremarkable and is barely suppressing an eye-roll. Register: dry, "
-        "ironic, mock-grandiose — treat something ordinary as if it were a monumental "
-        "event. Clever, never cruel; the irony comes from tone, never from making things up.",
+        "Write a SARCASTIC caption: dry, deadpan, and lightly mocking, as if gently "
+        "unimpressed. Stay clever rather than cruel, and keep it grounded in what is "
+        "actually shown — the irony comes from the tone, not from inventing anything.",
         ("Another gripping episode of a person staring into a glowing rectangle to confirm they still exist.",
-         "Behold a cat walking across a floor — a breathtaking feat of athleticism surely never before attempted."),
+         "Truly groundbreaking footage of a cat walking across a floor, a feat surely never attempted before."),
         "Oh, riveting — {facts}. Truly unmissable television.",
     ),
     Style(
         "humorous_tech", "Humorous (tech)",
-        "You are a burnt-out software engineer who can't stop mapping the real world to "
-        "code: bugs, deploys, prod incidents, latency, merge conflicts, infinite loops, "
-        "Stack Overflow, CI pipelines. Land ONE genuinely funny tech analogy that fits "
-        "what is actually shown — the joke rides on the real subject and action, never replaces them.",
-        ("This dog hit an infinite loop chasing its tail and clearly forgot to write a base case.",
-         "The rain is throwing 500s across the whole city and everyone's scrambling for an umbrella-shaped hotfix."),
+        "Write a HUMOROUS caption that lands a joke using a tech, programming, or "
+        "internet reference (bugs, deploys, servers, merge conflicts, latency, Stack "
+        "Overflow, infinite loops). The analogy must fit what is actually shown — funny "
+        "first, but still recognizably about the scene.",
+        ("This dog hit an infinite loop chasing its tail and clearly forgot the base case.",
+         "The sky just started throwing 500s and everyone is scrambling for an umbrella-shaped hotfix."),
         "When {facts}: ship it to prod and pray the tests pass.",
     ),
     Style(
         "humorous_non_tech", "Humorous (non-tech)",
-        "You are a warm, slightly weary everyday person cracking the kind of relatable "
-        "joke anyone at a dinner table would instantly get. Absolutely NO technical or "
-        "programming jargon and no niche references — just playful, human humor tied to "
-        "exactly what is shown.",
-        ("He picked a fight with a ball of yarn, lost decisively, and is already plotting the rematch.",
-         "The face of someone who said 'just one more email' four coffees ago and has now fully fused with the chair."),
+        "Write a HUMOROUS caption using everyday, relatable humor with NO technical or "
+        "programming jargon whatsoever. Warm, playful, the kind of joke anyone would "
+        "get, tied to what is actually shown.",
+        ("He picked a fight with a ball of yarn and lost, and he is already planning the rematch.",
+         "The face of someone who said 'just one more email' four coffees ago and has now fused with the chair."),
         "That moment when {facts} and you just can't even.",
     ),
 ]
@@ -87,21 +78,17 @@ STYLE_KEYS = [s.key for s in STYLES]
 
 
 def style_system(style: Style) -> str:
-    """Focused system prompt for one style: character role + rules + two few-shots."""
-    shots = "\n".join(f"Example (matching register, different scene): {e}" for e in style.examples)
-    return (f"{style.role}\n\n{_OUTPUT_RULES}\n\n{shots}\n\n"
+    """Focused system prompt for one style: role + output rules + two few-shots."""
+    shots = "\n".join(f"Example caption: {e}" for e in style.examples)
+    return (f"You are an expert video caption writer. {style.role}\n\n{_OUTPUT_RULES}\n\n"
+            f"{shots}\n\n"
             'Respond with ONLY a JSON object of the form {"caption": "<your caption>"}.')
 
 
-def generation_prompt(facts: str, style: Style, fix: str | None = None) -> str:
-    """User message: the shared grounded facts + the ask for this one style. `fix`
-    carries a concrete correction when regenerating a caption the self-check flagged."""
-    msg = (f"Scene description (everything below is what is actually in the clip):\n{facts}\n\n"
-           f"Write the {style.name} caption now.")
-    if fix:
-        msg += (f"\n\nA previous attempt was weak: {fix} "
-                f"Write a better one that fixes this while staying faithful to the scene.")
-    return msg
+def generation_prompt(facts: str, style: Style) -> str:
+    """User message: the shared grounded facts + the ask for this one style."""
+    return (f"Scene description (everything below is what is actually in the clip):\n{facts}\n\n"
+            f"Write the {style.name} caption now.")
 
 
 # ---- self-check ------------------------------------------------------------
