@@ -22,54 +22,61 @@ class Style:
     stub_template: str        # deterministic offline fallback, distinct per style
 
 
-# Shared output contract appended to every style's system prompt. The
-# anti-hallucination + no-hedge rules target the accuracy axis directly.
+# Shared output contract appended to every style's system prompt. Modeled on the
+# official reference captions: CONCISE and WITTY, built around the single most
+# striking element — not a dense literal inventory. Style/interpretation is
+# rewarded; exhaustive detail is not.
 _OUTPUT_RULES = (
-    "Write ONE tight, punchy caption — a single sentence is ideal (two SHORT "
-    "sentences only if a joke truly needs a setup and a punchline). Be concrete "
-    "and specific: name the actual subject, action, and setting from the scene "
-    "description. Never hedge (no 'a video clip', 'appears to be', 'some kind "
-    "of'). Never invent objects, text, brands, people, or actions that are not "
-    "in the description. No emoji, no hashtags, no quotes, no preamble."
+    "Write ONE punchy caption, roughly 10-28 words (formal may run to two short "
+    "sentences). Zero in on the SINGLE most striking or defining thing in the clip "
+    "and build the caption around that — do NOT list many details or write an "
+    "inventory. Stay recognizably about the actual scene, but wit, personality, "
+    "exaggeration, and figurative comparisons are encouraged. Do not fabricate the "
+    "core subject, and do not quote words on signs/logos you cannot clearly read. "
+    "No emoji, no hashtags, no quotes, no labels, no preamble. Plain English."
 )
 
 
 STYLES: list[Style] = [
     Style(
         "formal", "Formal",
-        "Write a FORMAL caption: objective, precise, and factual, in the register "
-        "of a documentary narrator or a news photo caption. Third person, present "
-        "tense. No humor, no opinion, no exclamation marks — report exactly what is shown.",
-        ("Golden autumn foliage lines a busy boulevard as vehicles and pedestrians move steadily along the avenue.",
-         "A young woman works at a desk in a modern office, typing on a keyboard while focused on a monitor."),
+        "Write a FORMAL caption: a clear, professional description in the register of "
+        "a documentary narrator or a news photo caption. Name the main subject and "
+        "setting specifically, focusing on the most salient elements. Objective and "
+        "precise; no humor, no opinion.",
+        ("A wide urban boulevard lined with golden ginkgo trees in full autumn foliage, with multiple lanes of traffic flowing below high-rise residential buildings.",
+         "A young professional woman sits at a desktop computer in a bright, modern open-plan office, focused intently on her screen."),
         "The footage shows {facts}.",
     ),
     Style(
         "sarcastic", "Sarcastic",
-        "Write a SARCASTIC caption: dry, deadpan, and lightly mocking, as if gently "
-        "unimpressed. Stay clever rather than cruel, and keep it grounded in what is "
-        "actually shown — the irony comes from the tone, not from inventing anything.",
-        ("Another gripping episode of a person staring into a glowing rectangle to confirm they still exist.",
-         "Truly groundbreaking footage of a cat walking across a floor, a feat surely never attempted before."),
+        "Write a SARCASTIC caption: dry, deadpan, ironic wit. It can be a conceptual "
+        "jab rather than a description — mock-praise the mundane or feign being "
+        "thoroughly unimpressed. Clever, not cruel; lightly tied to the scene; "
+        "interpretive liberty is welcome. IMPORTANT: vary your opening and do NOT begin "
+        "with 'Behold', 'Witness', or 'Ah yes' — a flat, matter-of-fact deadpan "
+        "statement usually lands best.",
+        ("A city that decided trees were a good idea, which is more than most cities can say.",
+         "A person at a computer, apparently working, which is exactly what someone would do if they were not working."),
         "Oh, riveting — {facts}. Truly unmissable television.",
     ),
     Style(
         "humorous_tech", "Humorous (tech)",
-        "Write a HUMOROUS caption that lands a joke using a tech, programming, or "
-        "internet reference (bugs, deploys, servers, merge conflicts, latency, Stack "
-        "Overflow, infinite loops). The analogy must fit what is actually shown — funny "
-        "first, but still recognizably about the scene.",
-        ("This dog hit an infinite loop chasing its tail and clearly forgot the base case.",
-         "The sky just started throwing 500s and everyone is scrambling for an umbrella-shaped hotfix."),
+        "Write a HUMOROUS caption for a developer/tech audience: a clever programming, "
+        "deploy, bug, server, latency, or internet metaphor riffed off the scene. "
+        "Meme-style framings ('When your code...') work well. Funny first; the tech "
+        "analogy should map onto something actually in the clip.",
+        ("Nature's annual deployment: all leaf nodes updated to yellow simultaneously, no breaking changes reported.",
+         "When your code runs perfectly in dev but crashes like a wave in production."),
         "When {facts}: ship it to prod and pray the tests pass.",
     ),
     Style(
         "humorous_non_tech", "Humorous (non-tech)",
-        "Write a HUMOROUS caption using everyday, relatable humor with NO technical or "
-        "programming jargon whatsoever. Warm, playful, the kind of joke anyone would "
-        "get, tied to what is actually shown.",
-        ("He picked a fight with a ball of yarn and lost, and he is already planning the rematch.",
-         "The face of someone who said 'just one more email' four coffees ago and has now fused with the chair."),
+        "Write a HUMOROUS caption with everyday, relatable humor and NO technical or "
+        "programming jargon. Warm, playful; meme-style ('When you...') is welcome. Tie "
+        "it to the scene with a wink — interpretive personality is encouraged.",
+        ("A tiny cat has gone outside and is now judging everything it sees with great authority.",
+         "When you finally leave the house but forget where you were going."),
         "That moment when {facts} and you just can't even.",
     ),
 ]
@@ -78,8 +85,10 @@ STYLE_KEYS = [s.key for s in STYLES]
 
 
 def style_system(style: Style) -> str:
-    """Focused system prompt for one style: role + output rules + two few-shots."""
-    shots = "\n".join(f"Example caption: {e}" for e in style.examples)
+    """Focused system prompt for one style: role + output rules + two few-shots.
+    The examples are drawn from the official reference captions so the model
+    matches the exact winning register, length, and wit."""
+    shots = "\n".join(f"Example of this style (different clip): {e}" for e in style.examples)
     return (f"You are an expert video caption writer. {style.role}\n\n{_OUTPUT_RULES}\n\n"
             f"{shots}\n\n"
             'Respond with ONLY a JSON object of the form {"caption": "<your caption>"}.')
