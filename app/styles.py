@@ -30,7 +30,9 @@ _OUTPUT_RULES = (
     "and specific: name the actual subject, action, and setting from the scene "
     "description. Never hedge (no 'a video clip', 'appears to be', 'some kind "
     "of'). Never invent objects, text, brands, people, or actions that are not "
-    "in the description. No emoji, no hashtags, no quotes, no preamble."
+    "in the description, and never contradict the subject's actual demeanor or mood "
+    "(e.g. do not call a cautious, hesitant subject bold or confident). "
+    "No emoji, no hashtags, no quotes, no preamble."
 )
 
 
