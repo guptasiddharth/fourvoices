@@ -41,9 +41,10 @@ STYLES: list[Style] = [
     Style(
         "formal", "Formal",
         "Write a FORMAL caption: a clear, professional description in the register of "
-        "a documentary narrator or a news photo caption. Name the main subject and "
-        "setting specifically, focusing on the most salient elements. Objective and "
-        "precise; no humor, no opinion.",
+        "a documentary narrator or a news photo caption. Prefer a SINGLE clean sentence "
+        "that LEADS with the scene's single most defining element, then adds the main "
+        "subject and setting. Specific but not exhaustive — do not list every detail. "
+        "Objective and precise; no humor, no opinion.",
         ("A wide urban boulevard lined with golden ginkgo trees in full autumn foliage, with multiple lanes of traffic flowing below high-rise residential buildings.",
          "A young professional woman sits at a desktop computer in a bright, modern open-plan office, focused intently on her screen."),
         "The footage shows {facts}.",
@@ -53,11 +54,12 @@ STYLES: list[Style] = [
         "Write a SARCASTIC caption: dry, deadpan, ironic wit. It can be a conceptual "
         "jab rather than a description — mock-praise the mundane or feign being "
         "thoroughly unimpressed. Clever, not cruel; lightly tied to the scene; "
-        "interpretive liberty is welcome. IMPORTANT: vary your opening and do NOT begin "
-        "with 'Behold', 'Witness', or 'Ah yes' — a flat, matter-of-fact deadpan "
-        "statement usually lands best.",
+        "interpretive liberty is welcome. IMPORTANT: vary your STRUCTURE every time — "
+        "do NOT open with 'Behold', 'Witness', or 'Ah yes', and do NOT lean on the "
+        "'…, proving that…' formula. Mix it up: a flat deadpan statement, a mock-praise, "
+        "a rhetorical aside, or a dry interrupted thought all work.",
         ("A city that decided trees were a good idea, which is more than most cities can say.",
-         "A person at a computer, apparently working, which is exactly what someone would do if they were not working."),
+         "Just another quiet day in the bustling metropolis of — wait, what city is this again?"),
         "Oh, riveting — {facts}. Truly unmissable television.",
     ),
     Style(
