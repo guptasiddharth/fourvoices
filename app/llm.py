@@ -109,6 +109,24 @@ def _bad_facts(text: str) -> bool:
     return False
 
 
+_VERIFY_PROMPT = (
+    "Here is a draft description of a short video clip's keyframes:\n\n{draft}\n\n"
+    "Check every concrete claim in the draft against the actual frames. For each claim "
+    "decide if it is (a) clearly a real, visible object/scene, (b) a graphical overlay, "
+    "watermark, logo, or transition/dissolve effect, (c) only partially visible or "
+    "unclear, or (d) not actually supported by the frames.\n"
+    "Rewrite the description keeping ONLY category (a) claims. Never describe overlays, "
+    "watermarks, or transition effects as if they were real objects. Remove or "
+    "generalize anything in (c) or (d).\n"
+    "Also remove or generalize these high-risk, often-wrong specifics: exact quoted "
+    "text and sign/brand/slogan wording; city/country/landmark/location names; and "
+    "ethnicity, identity, or religion labels.\n"
+    "Keep the main subject and its action, concrete and specific. Neutral and factual, "
+    "no humor, no opinion.\n"
+    'Respond with ONLY a JSON object: {{"description": "<the corrected description>"}}.'
+)
+
+
 class LLMClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self.s = settings or SETTINGS
@@ -183,33 +201,50 @@ class LLMClient:
         return self._chat(messages, max_tokens=max_tokens, prefill="{",
                           temperature=temperature)
 
-    def describe_frames(self, frame_paths: list[str]) -> str:
-        """Gemma multimodal → neutral, grounded visual facts for the clip."""
-        if self.s.mode == "stub" or not frame_paths:
-            return _STUB_FACTS
-        content = [{"type": "text", "text":
-                    "You are a meticulous visual analyst. These images are keyframes "
-                    "sampled in order across a single short video clip. In 2-4 factual "
-                    "sentences, describe: the setting/location, the main subjects, the "
-                    "actions or motion across the frames from start to finish, the mood, "
-                    "notable visual details (colors, lighting, weather), and any visible "
-                    "text, signage, screens, or technology. Neutral and factual — no humor, "
-                    "no opinion, no invented detail. English only.\n"
-                    'Respond with ONLY a JSON object: {"description": "<the paragraph>"}.'}]
+    def _frame_images(self, frame_paths: list[str]) -> list[dict]:
+        imgs = []
         for p in frame_paths:
             with open(p, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
             mime = mimetypes.guess_type(p)[0] or "image/jpeg"
-            content.append({"type": "image_url",
-                            "image_url": {"url": f"data:{mime};base64,{b64}"}})
-        # JSON + assistant-prefill of "{" skips Gemma's <thought> entirely (as in
-        # styling), so the paragraph comes back clean without a huge token budget.
-        # Low temperature for faithfulness.
-        msg = [{"role": "user", "content": content}]
+            imgs.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
+        return imgs
+
+    def describe_frames(self, frame_paths: list[str]) -> str:
+        """Multimodal grounding in TWO passes: draft, then a verify pass that
+        re-checks each claim against the same frames and drops hallucinations,
+        overlays/transition effects, and high-risk specifics (sign text, brands,
+        locations, identity). Fewer wrong claims → higher caption accuracy."""
+        if self.s.mode == "stub" or not frame_paths:
+            return _STUB_FACTS
+        images = self._frame_images(frame_paths)
+        draft_text = {"type": "text", "text":
+                      "You are a meticulous visual analyst. These images are keyframes "
+                      "sampled in order across a single short video clip. In 2-4 factual "
+                      "sentences, describe: the setting/location, the main subjects, the "
+                      "actions or motion across the frames from start to finish, the mood, "
+                      "notable visual details (colors, lighting, weather), and any visible "
+                      "text, signage, screens, or technology. Neutral and factual — no humor, "
+                      "no opinion, no invented detail. English only.\n"
+                      'Respond with ONLY a JSON object: {"description": "<the paragraph>"}.'}
+        msg = [{"role": "user", "content": [draft_text] + images}]
         facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
         if _bad_facts(facts):                        # leaked/looped/empty → retry once
             facts = _json_field(self._ask_json(msg, 500, 0.2), "description")
-        return _STUB_FACTS if _bad_facts(facts) else facts
+        if _bad_facts(facts):
+            return _STUB_FACTS
+        return self._verify_facts(facts, images)
+
+    def _verify_facts(self, draft: str, images: list[dict]) -> str:
+        """Second grounding pass: critique the draft against the frames and rewrite,
+        keeping only clearly-visible claims. Falls back to the draft on any failure."""
+        text = {"type": "text", "text": _VERIFY_PROMPT.format(draft=draft)}
+        msg = [{"role": "user", "content": [text] + images}]
+        try:
+            fixed = _json_field(self._ask_json(msg, 600, 0.1), "description")
+        except Exception:  # noqa: BLE001
+            return draft
+        return draft if _bad_facts(fixed) else fixed
 
     def style_all(self, facts: str, keys: list[str]) -> dict[str, str]:
         """One focused call per style (each with its own role + few-shots). Separate
