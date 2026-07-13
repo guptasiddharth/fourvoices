@@ -8,6 +8,7 @@ caption that drifts.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from .frames import duration_sec, sample_frames
@@ -36,13 +37,11 @@ class VideoCaptioner:
 
         by = {s.key: s for s in STYLES}
         keys = list(by)
-        # Generate the four styles SEQUENTIALLY, each shown the captions already
-        # written so it diverges in wording/structure/comedic angle — sharper tone
-        # separation. On the eval's fast infra these are ~1-2s calls (~6s total);
-        # the harness time budget is the backstop if the network is ever slow.
-        captions: dict[str, str] = {}
-        for k in keys:
-            captions[k] = self.llm.style_caption(grounded, by[k], prior=list(captions.values()))
+        # Four focused per-style calls, run concurrently — total styling latency is
+        # ~one call instead of four (keeps us well inside the time budget).
+        with ThreadPoolExecutor(max_workers=len(keys)) as ex:
+            futs = {k: ex.submit(self.llm.style_caption, grounded, by[k]) for k in keys}
+            captions = {k: futs[k].result() for k in keys}
         checks = {k: {"accuracy": accuracy_ok(grounded, captions[k])} for k in keys}
 
         return {

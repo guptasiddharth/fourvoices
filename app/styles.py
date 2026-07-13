@@ -96,20 +96,10 @@ def style_system(style: Style) -> str:
             'Respond with ONLY a JSON object of the form {"caption": "<your caption>"}.')
 
 
-def generation_prompt(facts: str, style: Style, prior: list[str] | None = None) -> str:
-    """User message: the shared grounded facts + the ask for this one style. `prior`
-    holds captions already written for OTHER styles of the same clip, so this one is
-    told to diverge — sharpening tone separation across the four voices."""
-    msg = (f"Scene description (everything below is what is actually in the clip):\n{facts}\n\n"
-           f"Write the {style.name} caption now.")
-    if prior:
-        joined = "\n".join(f"- {c}" for c in prior if c)
-        if joined:
-            msg += ("\n\nCaptions already written for OTHER styles of this same clip. Your "
-                    "caption must take a DISTINCTLY different angle: do NOT reuse their "
-                    "sentence structure, opening words, or core joke/comparison. If they "
-                    f"leaned on one idea, pick a completely different one:\n{joined}")
-    return msg
+def generation_prompt(facts: str, style: Style) -> str:
+    """User message: the shared grounded facts + the ask for this one style."""
+    return (f"Scene description (everything below is what is actually in the clip):\n{facts}\n\n"
+            f"Write the {style.name} caption now.")
 
 
 # ---- self-check ------------------------------------------------------------

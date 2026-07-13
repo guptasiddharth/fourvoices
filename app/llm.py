@@ -254,12 +254,11 @@ class LLMClient:
         keys = [k for k in keys if k in by]
         return {k: self.style_caption(facts, by[k]) for k in keys}
 
-    def style_caption(self, facts: str, style: Style,
-                      prior: list[str] | None = None) -> str:
+    def style_caption(self, facts: str, style: Style) -> str:
         if self.s.mode == "stub":
             return style.stub_template.format(facts=facts.rstrip("."))
         msg = [{"role": "system", "content": style_system(style)},
-               {"role": "user", "content": generation_prompt(facts, style, prior)}]
+               {"role": "user", "content": generation_prompt(facts, style)}]
         # Higher temperature so the humor/irony actually lands; the guard + stub
         # fallback keep a bad sample from ever shipping.
         for _ in range(2):                              # retry once on a degenerate sample
