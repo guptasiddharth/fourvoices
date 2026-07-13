@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 
 from .config import SETTINGS, Settings
-from .styles import STYLES, Style, generation_prompt, style_system
+from .styles import STYLES, Style, generation_prompt, style_system, tech_ok
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -254,18 +254,26 @@ class LLMClient:
         keys = [k for k in keys if k in by]
         return {k: self.style_caption(facts, by[k]) for k in keys}
 
-    def style_caption(self, facts: str, style: Style) -> str:
+    def style_caption(self, facts: str, style: Style,
+                      prior: list[str] | None = None) -> str:
         if self.s.mode == "stub":
             return style.stub_template.format(facts=facts.rstrip("."))
         msg = [{"role": "system", "content": style_system(style)},
-               {"role": "user", "content": generation_prompt(facts, style)}]
+               {"role": "user", "content": generation_prompt(facts, style, prior)}]
         # Higher temperature so the humor/irony actually lands; the guard + stub
-        # fallback keep a bad sample from ever shipping.
-        for _ in range(2):                              # retry once on a degenerate sample
+        # fallback keep a bad sample from ever shipping. For humorous_tech, retry if
+        # the caption forgot to include a real tech reference (keep the first clean
+        # one as a fallback so a good caption is never lost).
+        best = ""
+        for _ in range(3):
             cap = _json_field(self._ask_json(msg, 110, 0.65), "caption")
-            if not _degenerate(cap):
-                return cap
-        return style.stub_template.format(facts=facts.rstrip("."))   # clean, never garbage
+            if _degenerate(cap):
+                continue
+            best = best or cap
+            if style.key == "humorous_tech" and not tech_ok(cap):
+                continue
+            return cap
+        return best or style.stub_template.format(facts=facts.rstrip("."))
 
     def check_tone(self, caption: str, style: Style) -> bool:
         """LLM tone verification (mirrors the judge). Stub trusts the template."""

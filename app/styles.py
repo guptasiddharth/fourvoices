@@ -96,10 +96,39 @@ def style_system(style: Style) -> str:
             'Respond with ONLY a JSON object of the form {"caption": "<your caption>"}.')
 
 
-def generation_prompt(facts: str, style: Style) -> str:
-    """User message: the shared grounded facts + the ask for this one style."""
-    return (f"Scene description (everything below is what is actually in the clip):\n{facts}\n\n"
-            f"Write the {style.name} caption now.")
+def generation_prompt(facts: str, style: Style, prior: list[str] | None = None) -> str:
+    """User message: the shared grounded facts + the ask for this one style. `prior`
+    holds captions already written for OTHER styles of the same clip, so this one is
+    told to diverge — maximizing tone separation across the four voices."""
+    msg = (f"Scene description (everything below is what is actually in the clip):\n{facts}\n\n"
+           f"Write the {style.name} caption now.")
+    if prior:
+        joined = "\n".join(f"- {c}" for c in prior if c)
+        if joined:
+            msg += ("\n\nCaptions already written for OTHER styles of this same clip — make "
+                    "yours clearly different in wording, sentence structure, and comedic "
+                    f"angle (do not echo these):\n{joined}")
+    return msg
+
+
+# Tokens that mark a genuine tech/programming reference — humorous_tech must land one.
+TECH_WORDS = {
+    "api", "async", "backend", "binary", "boot", "branch", "buffer", "bug", "build",
+    "byte", "cache", "ci", "cd", "cloud", "code", "commit", "compile", "compiler",
+    "cpu", "crash", "daemon", "data", "database", "debug", "deploy", "deployment",
+    "dev", "devops", "docker", "endpoint", "error", "exception", "firewall",
+    "framework", "function", "git", "gpu", "hardware", "kernel", "lag", "latency",
+    "loop", "memory", "merge", "microservice", "network", "packet", "pipeline",
+    "prod", "production", "pull", "push", "query", "queue", "refactor", "render",
+    "repo", "rollback", "runtime", "server", "software", "stack", "sync", "syntax",
+    "terminal", "test", "thread", "timeout", "update", "upload", "variable", "version",
+}
+
+
+def tech_ok(caption: str) -> bool:
+    """True if the caption contains a real tech/programming reference."""
+    import re
+    return any(w in TECH_WORDS for w in re.findall(r"[a-z]+", caption.lower()))
 
 
 # ---- self-check ------------------------------------------------------------

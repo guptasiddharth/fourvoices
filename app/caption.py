@@ -37,8 +37,10 @@ class VideoCaptioner:
 
         by = {s.key: s for s in STYLES}
         keys = list(by)
-        # Four focused per-style calls, run concurrently — total styling latency is
-        # ~one call instead of four (keeps us well inside the time budget).
+        # Four focused per-style calls, run CONCURRENTLY — total styling latency is
+        # ~one call instead of four. (Sequential styling gave marginally better tone
+        # separation but was ~4x slower, risking the eval timeout — not worth it; our
+        # few-shot personas already keep the four voices distinct.)
         with ThreadPoolExecutor(max_workers=len(keys)) as ex:
             futs = {k: ex.submit(self.llm.style_caption, grounded, by[k]) for k in keys}
             captions = {k: futs[k].result() for k in keys}
