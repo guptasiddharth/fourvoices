@@ -24,8 +24,8 @@ COPY eval ./eval
 #  OpenAI-compatible host, e.g. Gemma 4 on Google AI Studio.)
 ARG LLM_API_KEY=""
 ENV LLM_BASE_URL=https://api.fireworks.ai/inference/v1 \
-    LLM_MODEL=accounts/fireworks/models/qwen3p7-plus \
-    LLM_MODEL_FALLBACK=accounts/fireworks/models/kimi-k2p6 \
+    LLM_MODEL=accounts/fireworks/models/minimax-m3 \
+    LLM_MODEL_FALLBACK=accounts/fireworks/models/qwen3p7-plus \
     LLM_REASONING_EFFORT=none \
     VC_N_FRAMES=12 \
     LLM_API_KEY=${LLM_API_KEY}
